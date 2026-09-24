@@ -26,6 +26,12 @@ public class Enemy : MonoBehaviour
     [SerializeField] private Animator animator;
     [SerializeField] private float blendDamping = 0.15f;
 
+    [Header("Reward")]
+    [Tooltip("Kosongkan buat auto-cari BlacksmithUpgrades yang ada di scene.")]
+    [SerializeField] private BlacksmithUpgrades upgrades;
+    [Tooltip("Gold yang didapat pas musuh ini mati (dibunuh NPC).")]
+    [SerializeField] private int goldReward = 10;
+
     private Rigidbody body;
     private Health health;
     public Health Health => health;
@@ -40,6 +46,7 @@ public class Enemy : MonoBehaviour
         body = GetComponent<Rigidbody>();
         health = GetComponent<Health>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
+        if (upgrades == null) upgrades = FindObjectOfType<BlacksmithUpgrades>();
 
         health.onDeath.AddListener(HandleDeath);
     }
@@ -131,6 +138,8 @@ public class Enemy : MonoBehaviour
 
     private void HandleDeath()
     {
+        if (upgrades != null) upgrades.AddGold(goldReward);
+
         if (animator != null) animator.SetBool(CombatAnimatorParams.Death, true);
         if (body != null) body.isKinematic = true;
 

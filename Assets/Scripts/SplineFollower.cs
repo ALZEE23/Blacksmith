@@ -36,8 +36,12 @@ public class SplineFollower : MonoBehaviour
     [SerializeField] private float attackCooldown = 1f;
 
     [Header("Senjata")]
-    [Tooltip("Object pedang (child NPC ini), nonaktif dari awal. Otomatis di-SetActive(true) begitu Equip() dipanggil (misal pas forging selesai).")]
+    [Tooltip("Object pedang bawaan (child NPC ini), nonaktif dari awal. Dipakai kalau Hand Slot kosong / Equip() gak dikasih prefab senjata.")]
     [SerializeField] private GameObject sword;
+    [Tooltip("Transform tempat model senjata di-spawn (misal tulang tangan NPC). Kalau diisi dan Equip() dikasih prefab, senjatanya di-instantiate di sini gantiin sword bawaan.")]
+    [SerializeField] private Transform handSlot;
+
+    private GameObject equippedWeaponInstance;
 
     [Header("Animator")]
     [Tooltip("Kosongkan buat auto-cari Animator di child object ini.")]
@@ -274,12 +278,26 @@ public class SplineFollower : MonoBehaviour
 
     public bool IsAtCheckpointFront => waiting && queueSlot == 0;
 
-    // Dipanggil pas forging selesai (misal dari BlacksmithStation): nyalain object pedang di NPC ini
-    // dan nge-set pengali damage sesuai kualitas hasil QTE (0 = Miss semua, 1 = Good/Perfect semua).
-    public void Equip(float damageMultiplierFromQuality)
+    // Dipanggil pas forging selesai (misal dari BlacksmithStation). damageMultiplierFromQuality
+    // dari kualitas hasil QTE (0 = Miss semua, 1 = Good/Perfect semua) dikali sama upgrade weapon.
+    // weaponPrefab opsional: kalau diisi DAN Hand Slot ke-assign, prefab-nya di-instantiate di
+    // situ (gantiin senjata lama kalau ada) — buat kasus upgrade weapon ganti model/tier senjata.
+    // Kalau kosong, fallback ke sword bawaan yang tinggal di-SetActive(true).
+    public void Equip(float damageMultiplierFromQuality, GameObject weaponPrefab = null)
     {
         damageMultiplier = Mathf.Max(0f, damageMultiplierFromQuality);
-        if (sword != null) sword.SetActive(true);
+
+        if (handSlot != null && weaponPrefab != null)
+        {
+            if (equippedWeaponInstance != null) Destroy(equippedWeaponInstance);
+            equippedWeaponInstance = Instantiate(weaponPrefab, handSlot);
+            equippedWeaponInstance.transform.localPosition = Vector3.zero;
+            equippedWeaponInstance.transform.localRotation = Quaternion.identity;
+        }
+        else if (sword != null)
+        {
+            sword.SetActive(true);
+        }
     }
 
     private void LeaveQueueIfWaiting()

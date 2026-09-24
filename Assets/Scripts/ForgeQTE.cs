@@ -39,6 +39,10 @@ public class ForgeQTE : MonoBehaviour
     [SerializeField] private TMP_Text resultLabel;
     [SerializeField] private float resultLabelDuration = 0.6f;
 
+    [Header("Upgrade (opsional)")]
+    [Tooltip("Kosongkan kalau belum pakai sistem upgrade. Anvil Level di sini bikin progress per hit lebih gede (forging lebih cepet).")]
+    [SerializeField] private BlacksmithUpgrades upgrades;
+
     [Header("Panel")]
     [Tooltip("Object yang di-nonaktifin/aktifin pas QTE mulai/selesai. Kosongkan kalau mau atur sendiri dari luar.")]
     [SerializeField] private GameObject panelRoot;
@@ -138,17 +142,20 @@ public class ForgeQTE : MonoBehaviour
 
     private void ApplyResult(HitResult result)
     {
+        // Anvil level nge-boost progress per hit, jadi forging-nya kerasa lebih cepet kelar.
+        float speedMul = upgrades != null ? upgrades.ForgeSpeedMultiplier : 1f;
+
         switch (result)
         {
             case HitResult.Good:
                 goodCount++;
-                progress = Mathf.Clamp01(progress + goodProgress);
+                progress = Mathf.Clamp01(progress + goodProgress * speedMul);
                 needleSpeed += speedRampPerHit;
                 ShowResult("Perfect!");
                 break;
             case HitResult.Early:
                 earlyCount++;
-                progress = Mathf.Clamp01(progress + earlyProgress);
+                progress = Mathf.Clamp01(progress + earlyProgress * speedMul);
                 ShowResult("Early!");
                 break;
             case HitResult.Miss:

@@ -17,6 +17,8 @@ public class NpcSpawner : MonoBehaviour
     [SerializeField] private float spawnInterval = 5f;
     [Tooltip("Batas jumlah NPC hidup sekaligus. Isi 0 untuk tanpa batas.")]
     [SerializeField] private int maxAlive;
+    [Tooltip("Jarak minimum dari titik spawn (awal spline) ke NPC terdekat biar boleh spawn baru. Kalau masih ada NPC lain yang lebih deket dari ini, spawn DITUNDA sampai ada ruang kosong — biar gak numpuk/tembus pas baru muncul.")]
+    [SerializeField] private float minSpawnClearance = 1.5f;
     [Tooltip("NPC yang di-spawn jadi child object ini kalau dicentang.")]
     [SerializeField] private bool parentToSpawner = true;
 
@@ -32,8 +34,25 @@ public class NpcSpawner : MonoBehaviour
         timer += Time.deltaTime;
         if (timer < spawnInterval) return;
 
+        // Titik spawn masih ditempatin NPC lain — tahan dulu, jangan reset timer, biar begitu
+        // ruangnya kosong langsung spawn tanpa nunggu interval penuh lagi dari awal.
+        if (!HasClearanceAtSpawnPoint()) return;
+
         timer = 0f;
         Spawn();
+    }
+
+    private bool HasClearanceAtSpawnPoint()
+    {
+        if (spline == null) return true;
+
+        Vector3 spawnPos = spline.EvaluatePosition(0f);
+        foreach (GameObject npc in alive)
+        {
+            if (npc == null) continue;
+            if (Vector3.Distance(npc.transform.position, spawnPos) < minSpawnClearance) return false;
+        }
+        return true;
     }
 
     private void Spawn()

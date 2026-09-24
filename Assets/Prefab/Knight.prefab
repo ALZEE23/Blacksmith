@@ -640,6 +640,7 @@ MonoBehaviour:
   attackDamage: 10
   attackCooldown: 1
   sword: {fileID: 998007414033502329}
+  handSlot: {fileID: 208568734227655547}
   animator: {fileID: 6731295321351879203}
   blendDamping: 0.15
 --- !u!114 &6095839203048014081
