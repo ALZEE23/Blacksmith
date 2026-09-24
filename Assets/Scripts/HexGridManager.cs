@@ -4,9 +4,17 @@ using UnityEngine;
 public class HexGridManager : MonoBehaviour
 {
     [Header("Grid")]
-    [Tooltip("Jarak dari pusat hex ke sudutnya.")]
+    [Tooltip("Jarak dari pusat hex ke sudutnya. Ini ukuran tile-nya sendiri, gak berubah walau Tile Spacing diubah.")]
     [SerializeField] private float hexSize = 1f;
+    [Tooltip("Pengali jarak ANTAR PUSAT hex. 1 = rapat pas nempel (default), > 1 = renggang ada celah antar tile, < 1 = numpuk/lebih rapat dari ukuran aslinya.")]
+    [SerializeField, Min(0.01f)] private float tileSpacing = 1f;
     [SerializeField] private bool pointyTop = true;
+
+    // Nyimpen Hex Size & Tile Spacing yang lagi "berlaku" buat tile yang UDAH ADA di scene, biar
+    // tombol Reflow tau harus mindahin dari posisi lama yang mana ke posisi baru yang mana.
+    // appliedHexSize -1 = belum pernah di-set, di-anggap sama kayak Hex Size saat ini pas Reflow pertama.
+    [SerializeField, HideInInspector] private float appliedHexSize = -1f;
+    [SerializeField, HideInInspector] private float appliedSpacing = 1f;
     [SerializeField] private int width = 10;
     [SerializeField] private int height = 10;
 
@@ -84,20 +92,58 @@ public class HexGridManager : MonoBehaviour
     }
 
     // Posisi pusat hex (axial q,r) ke world space, tanpa offset layer.
-    public Vector3 HexToWorld(Vector2Int hex)
+    // Pakai "step" (hexSize x tileSpacing) buat jarak antar tile, BUKAN hexSize polos — biar
+    // ukuran tile sendiri (dipakai di GetCorners) gak ikut berubah pas spacing-nya diubah.
+    public Vector3 HexToWorld(Vector2Int hex) => HexToWorldStep(hex, hexSize * tileSpacing);
+
+    private Vector3 HexToWorldStep(Vector2Int hex, float step)
     {
         float x, z;
         if (pointyTop)
         {
-            x = hexSize * Mathf.Sqrt(3f) * (hex.x + hex.y / 2f);
-            z = hexSize * 1.5f * hex.y;
+            x = step * Mathf.Sqrt(3f) * (hex.x + hex.y / 2f);
+            z = step * 1.5f * hex.y;
         }
         else
         {
-            x = hexSize * 1.5f * hex.x;
-            z = hexSize * Mathf.Sqrt(3f) * (hex.y + hex.x / 2f);
+            x = step * 1.5f * hex.x;
+            z = step * Mathf.Sqrt(3f) * (hex.y + hex.x / 2f);
         }
         return transform.TransformPoint(new Vector3(x, 0f, z));
+    }
+
+    // Mindahin tile yang UDAH ADA di scene ke posisi baru sesuai Hex Size/Tile Spacing SEKARANG,
+    // tanpa hapus/pasang ulang apapun — prefab, rotasi, dan offset custom (misal tinggi dekorasi)
+    // masing-masing tile tetep ke-preserve karena cuma posisinya yang digeser.
+    public void ReflowExistingTiles()
+    {
+        if (appliedHexSize < 0f) appliedHexSize = hexSize;
+
+        float oldStep = appliedHexSize * appliedSpacing;
+        float newStep = hexSize * tileSpacing;
+
+        if (Mathf.Approximately(oldStep, newStep))
+        {
+            Debug.Log("HexGridManager: Hex Size/Tile Spacing gak berubah dari terakhir kali, gak ada yang di-reflow.", this);
+            return;
+        }
+
+        HexTile[] tiles = GetComponentsInChildren<HexTile>();
+        foreach (HexTile tile in tiles)
+        {
+#if UNITY_EDITOR
+            UnityEditor.Undo.RecordObject(tile.transform, "Reflow Hex Tiles");
+#endif
+            Vector2Int hex = new Vector2Int(tile.q, tile.r);
+            Vector3 oldCenter = HexToWorldStep(hex, oldStep);
+            Vector3 newCenter = HexToWorldStep(hex, newStep);
+            Vector3 offsetFromCenter = tile.transform.position - oldCenter; // misal tinggi Y dekorasi, biar tetep kepakai
+            tile.transform.position = newCenter + offsetFromCenter;
+        }
+
+        appliedHexSize = hexSize;
+        appliedSpacing = tileSpacing;
+        Debug.Log($"HexGridManager: {tiles.Length} tile berhasil di-reflow.", this);
     }
 
     // Pusat hex + offset (local space grid) ke world space.
@@ -110,16 +156,17 @@ public class HexGridManager : MonoBehaviour
     public Vector2Int WorldToHex(Vector3 world)
     {
         Vector3 p = transform.InverseTransformPoint(world);
+        float step = hexSize * tileSpacing;
         float q, r;
         if (pointyTop)
         {
-            q = (Mathf.Sqrt(3f) / 3f * p.x - p.z / 3f) / hexSize;
-            r = (2f / 3f * p.z) / hexSize;
+            q = (Mathf.Sqrt(3f) / 3f * p.x - p.z / 3f) / step;
+            r = (2f / 3f * p.z) / step;
         }
         else
         {
-            q = (2f / 3f * p.x) / hexSize;
-            r = (-p.x / 3f + Mathf.Sqrt(3f) / 3f * p.z) / hexSize;
+            q = (2f / 3f * p.x) / step;
+            r = (-p.x / 3f + Mathf.Sqrt(3f) / 3f * p.z) / step;
         }
         return RoundAxial(q, r);
     }
@@ -200,6 +247,10 @@ public class HexGridManager : MonoBehaviour
                 PlaceTile(hex, layerIndex, brushOffset, prefab);
             }
         }
+
+        // Semua tile abis Generate udah pasti pakai Hex Size/Tile Spacing yang lagi aktif.
+        appliedHexSize = hexSize;
+        appliedSpacing = tileSpacing;
     }
 
     public void ClearLayer(int layerIndex)

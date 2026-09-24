@@ -41,12 +41,24 @@ public class HexGridManagerEditor : Editor
         }
 
         if (GUILayout.Button("Clear Semua Layer")) grid.ClearGrid();
+
+        EditorGUILayout.Space();
+        EditorGUILayout.HelpBox("Habis ubah Hex Size / Tile Spacing? Klik ini buat geser SEMUA tile yang udah ada ke jarak baru, tanpa hapus/pasang ulang.", MessageType.Info);
+        if (GUILayout.Button("Reflow Semua Tile (Sesuaikan Spacing)")) ReflowTiles(grid);
     }
 
     private static void RotateBrush(HexGridManager grid, int delta)
     {
         Undo.RecordObject(grid, "Rotate Hex Brush");
         grid.RotateBrush(delta);
+        EditorUtility.SetDirty(grid);
+        SceneView.RepaintAll();
+    }
+
+    private static void ReflowTiles(HexGridManager grid)
+    {
+        Undo.RecordObject(grid, "Reflow Hex Tiles Baseline");
+        grid.ReflowExistingTiles();
         EditorUtility.SetDirty(grid);
         SceneView.RepaintAll();
     }
