@@ -22,6 +22,8 @@ public class HexGridManager : MonoBehaviour
 
     [Tooltip("Rotasi tile yang dipasang, dalam kelipatan 60 derajat (0-5).")]
     [SerializeField, Range(0, 5)] private int rotationStep;
+    [Tooltip("Rotasi tambahan (derajat) yang ditumpuk di atas Rotation Step. Buat rapihin tile yang forward prefab-nya gak lurus, atau kasih kemiringan X/Z ke dekorasi.")]
+    [SerializeField] private Vector3 rotationOffset;
 
     [Header("Editor")]
     [Tooltip("Aktifkan biar bisa klik di Scene view: klik = pasang tile, Shift+klik = hapus.")]
@@ -63,9 +65,18 @@ public class HexGridManager : MonoBehaviour
 
     public Vector3 BrushOffset => brushOffset;
 
-    // Arah "depan" tile sesuai rotasi yang dipilih, di world space.
-    public Vector3 BrushForward =>
-        transform.rotation * Quaternion.Euler(0f, rotationStep * 60f, 0f) * Vector3.forward;
+    public Vector3 RotationOffset
+    {
+        get => rotationOffset;
+        set => rotationOffset = value;
+    }
+
+    // Rotasi akhir yang dipasang ke tile: kelipatan 60 derajat (Rotation Step) ditumpuk sama offset bebas.
+    public Quaternion BrushRotation =>
+        transform.rotation * Quaternion.Euler(0f, rotationStep * 60f, 0f) * Quaternion.Euler(rotationOffset);
+
+    // Arah "depan" tile sesuai rotasi + offset yang dipilih, di world space.
+    public Vector3 BrushForward => BrushRotation * Vector3.forward;
 
     public void RotateBrush(int delta)
     {
@@ -142,7 +153,7 @@ public class HexGridManager : MonoBehaviour
 
         GameObject go = SpawnPrefab(prefab);
         go.transform.position = HexToWorld(hex, localOffset);
-        go.transform.rotation = transform.rotation * Quaternion.Euler(0f, rotationStep * 60f, 0f);
+        go.transform.rotation = BrushRotation;
         go.name = $"{prefab.name} ({hex.x},{hex.y}) L{layerIndex}";
 
         HexTile tile = go.GetComponent<HexTile>();

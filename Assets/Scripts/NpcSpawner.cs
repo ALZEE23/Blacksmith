@@ -1,17 +1,20 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Splines;
 
 public class NpcSpawner : MonoBehaviour
 {
     [Header("Prefab")]
-    [Tooltip("Prefab NPC yang bisa muncul. Setiap spawn, satu dipilih secara acak.")]
+    [Tooltip("Prefab NPC yang bisa muncul (harus punya komponen SplineFollower). Setiap spawn, satu dipilih secara acak.")]
     [SerializeField] private List<GameObject> npcPrefabs = new List<GameObject>();
+
+    [Header("Spline")]
+    [Tooltip("Spline yang diikuti tiap NPC begitu muncul.")]
+    [SerializeField] private SplineContainer spline;
 
     [Header("Spawn")]
     [Tooltip("Jeda antar spawn, dalam detik.")]
     [SerializeField] private float spawnInterval = 5f;
-    [Tooltip("Titik spawn NPC. Kosongkan untuk pakai posisi object ini.")]
-    [SerializeField] private Transform spawnPoint;
     [Tooltip("Batas jumlah NPC hidup sekaligus. Isi 0 untuk tanpa batas.")]
     [SerializeField] private int maxAlive;
     [Tooltip("NPC yang di-spawn jadi child object ini kalau dicentang.")]
@@ -40,21 +43,28 @@ public class NpcSpawner : MonoBehaviour
             Debug.LogWarning("NpcSpawner: npcPrefabs masih kosong", this);
             return;
         }
+        if (spline == null)
+        {
+            Debug.LogWarning("NpcSpawner: spline belum di-assign", this);
+            return;
+        }
 
         GameObject prefab = npcPrefabs[Random.Range(0, npcPrefabs.Count)];
         if (prefab == null) return;
 
-        Vector3 position = spawnPoint != null ? spawnPoint.position : transform.position;
-        Quaternion rotation = spawnPoint != null ? spawnPoint.rotation : transform.rotation;
+        // Posisi/rotasi awal langsung ditentukan SplineFollower.Init lewat titik awal spline.
+        GameObject npc = Instantiate(prefab, parentToSpawner ? transform : null);
 
-        GameObject npc = Instantiate(prefab, position, rotation, parentToSpawner ? transform : null);
+        SplineFollower follower = npc.GetComponent<SplineFollower>();
+        if (follower == null)
+        {
+            Debug.LogWarning($"NpcSpawner: prefab '{prefab.name}' tidak punya komponen SplineFollower", this);
+        }
+        else
+        {
+            follower.Init(spline);
+        }
+
         alive.Add(npc);
-    }
-
-    private void OnDrawGizmosSelected()
-    {
-        Vector3 position = spawnPoint != null ? spawnPoint.position : transform.position;
-        Gizmos.color = Color.cyan;
-        Gizmos.DrawWireSphere(position, 0.3f);
     }
 }

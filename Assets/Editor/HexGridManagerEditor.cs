@@ -29,8 +29,9 @@ public class HexGridManagerEditor : Editor
 
         using (new EditorGUILayout.HorizontalScope())
         {
-            if (GUILayout.Button("Rotate Kiri (Q)")) RotateBrush(grid, -1);
-            if (GUILayout.Button("Rotate Kanan (R)")) RotateBrush(grid, 1);
+            if (GUILayout.Button("Rotate Kiri")) RotateBrush(grid, -1);
+            if (GUILayout.Button("Rotate Kanan")) RotateBrush(grid, 1);
+            if (GUILayout.Button("Reset Offset")) ResetRotationOffset(grid);
         }
 
         using (new EditorGUILayout.HorizontalScope())
@@ -46,6 +47,14 @@ public class HexGridManagerEditor : Editor
     {
         Undo.RecordObject(grid, "Rotate Hex Brush");
         grid.RotateBrush(delta);
+        EditorUtility.SetDirty(grid);
+        SceneView.RepaintAll();
+    }
+
+    private static void ResetRotationOffset(HexGridManager grid)
+    {
+        Undo.RecordObject(grid, "Reset Hex Brush Rotation Offset");
+        grid.RotationOffset = Vector3.zero;
         EditorUtility.SetDirty(grid);
         SceneView.RepaintAll();
     }
@@ -70,21 +79,6 @@ public class HexGridManagerEditor : Editor
         {
             switch (e.keyCode)
             {
-                case KeyCode.E:
-                    Undo.RecordObject(grid, "Toggle Erase Mode");
-                    grid.EraseMode = !grid.EraseMode;
-                    EditorUtility.SetDirty(grid);
-                    Repaint();
-                    e.Use();
-                    break;
-                case KeyCode.R:
-                    RotateBrush(grid, 1);
-                    e.Use();
-                    break;
-                case KeyCode.Q:
-                    RotateBrush(grid, -1);
-                    e.Use();
-                    break;
                 case KeyCode.RightBracket:
                     ChangeLayer(grid, 1);
                     Repaint();
