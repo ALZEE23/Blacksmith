@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: TiltShiftMaterial
-  m_Shader: {fileID: 4800000, guid: 42949bc6838df6a20b80d6cd50d28c8a, type: 3}
+  m_Name: ToonPostMaterial
+  m_Shader: {fileID: 4800000, guid: 8d18d85b5b8d1fb5dba83a483f089ff1, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -25,11 +25,10 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Angle: -90
-    - _BlurRadius: 0.00017
-    - _Feather: 0.491
-    - _FocusCenter: 0.506
-    - _FocusWidth: 0
-    - _Samples: 32
-    m_Colors: []
+    - _DepthThreshold: 0.003
+    - _Levels: 2
+    - _NormalThreshold: 0.4
+    - _OutlineThickness: 1.2
+    m_Colors:
+    - _OutlineColor: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

@@ -1,10 +1,16 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 using UnityEngine.Splines;
 
+// Fase jalan di spline (checkpoint/antre) tetap pakai Rigidbody.MovePosition presisi kayak
+// sebelumnya — itu udah stabil dan butuh posisi eksak buat sistem antrean. Fase Chase (keluar
+// spline ngejar musuh) pindah ke NavMeshAgent, biar otomatis ngelilingin tembok/obstacle dan
+// ngikutin kontur tanah — WAJIB ada NavMesh yang udah di-bake di scene (Window > AI > Navigation).
 [RequireComponent(typeof(Rigidbody))]
 [RequireComponent(typeof(Health))]
+[RequireComponent(typeof(NavMeshAgent))]
 public class SplineFollower : MonoBehaviour
 {
     public enum EndBehaviour { Stop, Loop, PingPong, ChaseEnemy }
@@ -60,6 +66,7 @@ public class SplineFollower : MonoBehaviour
 
     private Rigidbody body;
     private Health health;
+    private NavMeshAgent agent;
     private float length;
     private float distance;
     private int direction = 1;
@@ -73,6 +80,9 @@ public class SplineFollower : MonoBehaviour
     private bool notifiedReady;
 
     private bool chasing;
+    // Enemy pakai ini buat nge-skip NPC yang masih jalan/ngantre di spline — yang boleh diserang
+    // cuma NPC yang udah beneran keluar spline & lagi combat.
+    public bool IsInCombat => chasing;
     private Transform chaseTarget;
     private Health targetHealth;
     private float retargetTimer;
@@ -83,6 +93,8 @@ public class SplineFollower : MonoBehaviour
     {
         body = GetComponent<Rigidbody>();
         health = GetComponent<Health>();
+        agent = GetComponent<NavMeshAgent>();
+        agent.enabled = false; // cuma dipakai pas fase Chase, fase spline tetep pakai Rigidbody.MovePosition
         if (animator == null) animator = GetComponentInChildren<Animator>();
 
         health.onDeath.AddListener(HandleDeath);
@@ -355,11 +367,19 @@ public class SplineFollower : MonoBehaviour
         UpdateBlend(moved ? CombatAnimatorParams.BlendWalk : CombatAnimatorParams.BlendIdle);
     }
 
-    // NPC keluar dari spline dan lari lurus ke musuh terdekat di luar spline.
+    // NPC keluar dari spline dan lari ke musuh terdekat di luar spline, pindah kontrol gerak
+    // dari Rigidbody.MovePosition ke NavMeshAgent (biar ngelilingin obstacle & ngikutin tanah).
     private void StartChasing()
     {
         chasing = true;
         LeaveQueueIfWaiting();
+
+        agent.enabled = true;
+        agent.speed = chaseSpeed;
+        agent.stoppingDistance = stopDistance;
+        agent.updateRotation = faceMoveDirection;
+        agent.Warp(transform.position);
+
         FindNearestEnemy();
     }
 
@@ -378,22 +398,21 @@ public class SplineFollower : MonoBehaviour
             return;
         }
 
-        Vector3 toTarget = chaseTarget.position - body.position;
-        toTarget.y = 0f;
-        float dist = toTarget.magnitude;
+        if (agent.enabled) agent.SetDestination(chaseTarget.position);
 
-        if (dist <= stopDistance)
+        // Pakai jarak sisa di jalur NavMesh, BUKAN jarak lurus ke posisi target — kalau target
+        // ketutup collider, NavMesh gak bisa nyampe pas di titiknya (ada clearance dari obstacle).
+        // remainingDistance ngasih tau udah nyampe seposisi paling deket yang bisa dicapai.
+        bool closeEnough = agent.enabled && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+        if (closeEnough)
         {
-            FaceDirection(toTarget);
             UpdateBlend(CombatAnimatorParams.BlendIdle);
             Attack();
-            return;
         }
-
-        Vector3 dir = toTarget.normalized;
-        body.MovePosition(body.position + dir * chaseSpeed * Time.fixedDeltaTime);
-        FaceDirection(dir);
-        UpdateBlend(CombatAnimatorParams.BlendRun);
+        else
+        {
+            UpdateBlend(CombatAnimatorParams.BlendRun);
+        }
     }
 
     private void Attack()
@@ -404,14 +423,6 @@ public class SplineFollower : MonoBehaviour
 
         if (animator != null) animator.SetTrigger(CombatAnimatorParams.Attack);
         if (targetHealth != null) targetHealth.TakeDamage(attackDamage * damageMultiplier);
-    }
-
-    private void FaceDirection(Vector3 dir)
-    {
-        if (!faceMoveDirection) return;
-        dir.y = 0f;
-        if (dir.sqrMagnitude > 0.0001f)
-            body.MoveRotation(Quaternion.LookRotation(dir.normalized));
     }
 
     private void FindNearestEnemy()
@@ -450,6 +461,7 @@ public class SplineFollower : MonoBehaviour
 
         if (animator != null) animator.SetBool(CombatAnimatorParams.Death, true);
         if (body != null) body.isKinematic = true;
+        if (agent != null) agent.enabled = false;
 
         // Health yang urus Destroy(gameObject) setelah delay, di sini cukup stop semua logic-nya.
         enabled = false;

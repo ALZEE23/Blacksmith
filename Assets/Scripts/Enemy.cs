@@ -1,16 +1,22 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.AI;
 
 // Musuh yang standby di luar spline. Begitu ada NPC yang lolos kejar-kejaran (SplineFollower)
-// atau NPC lain lewat deket, Enemy ini samperin & serang balik. Animator-nya pakai skema yang
-// SAMA kayak NPC (lihat CombatAnimatorParams): Blend (idle/walk/run), Attack (trigger), Death (bool)
-// — jadi satu Animator Controller bisa dipetakan buat kedua jenis karakter.
+// atau NPC lain lewat deket, Enemy ini samperin & serang balik. Gerak pakai NavMeshAgent (bukan
+// Rigidbody.MovePosition manual) biar otomatis ngelilingin tembok/obstacle dan ngikutin kontur
+// tanah/tanjakan — WAJIB ada NavMesh yang udah di-bake di scene (Window > AI > Navigation).
+// Animator-nya pakai skema yang SAMA kayak NPC (lihat CombatAnimatorParams): Blend (idle/walk/run),
+// Attack (trigger), Death (bool) — jadi satu Animator Controller bisa dipetakan buat kedua jenis karakter.
 [RequireComponent(typeof(Health))]
-[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(NavMeshAgent))]
 public class Enemy : MonoBehaviour
 {
     [Header("Target")]
-    [Tooltip("Tag NPC yang dicari buat diserang. NPC (SplineFollower) harus dikasih tag ini.")]
+    [Tooltip("Tag NPC yang dicari buat diserang duluan. NPC (SplineFollower) harus dikasih tag ini.")]
     [SerializeField] private string targetTag = "Npc";
+    [Tooltip("Tag base/tembok yang diserang kalau lagi gak ada NPC di deket sama sekali (lihat Wall.cs). Sasaran cadangan/default.")]
+    [SerializeField] private string wallTag = "Wall";
     [SerializeField] private float chaseSpeed = 2f;
     [Tooltip("Jarak berhenti dari NPC sekaligus jarak serang.")]
     [SerializeField] private float stopDistance = 1f;
@@ -19,7 +25,6 @@ public class Enemy : MonoBehaviour
     [SerializeField] private float attackDamage = 10f;
     [Tooltip("Jeda antar serangan (detik). Disamain kira-kira sama durasi animasi Attack.")]
     [SerializeField] private float attackCooldown = 1f;
-    [SerializeField] private bool faceTarget = true;
 
     [Header("Animator")]
     [Tooltip("Kosongkan buat auto-cari Animator di child object ini.")]
@@ -32,23 +37,38 @@ public class Enemy : MonoBehaviour
     [Tooltip("Gold yang didapat pas musuh ini mati (dibunuh NPC).")]
     [SerializeField] private int goldReward = 10;
 
-    private Rigidbody body;
+    // Semua Enemy yang lagi nyerang Wall yang sama ditampung di sini, biar bisa saling ngitung
+    // "wall ini udah dikerubungin berapa Enemy" dan milih yang paling sepi — jadi nyebar, gak numpuk.
+    private static readonly Dictionary<Transform, int> wallAttackerCounts = new Dictionary<Transform, int>();
+
+    private NavMeshAgent agent;
     private Health health;
     public Health Health => health;
 
     private Transform target;
     private Health targetHealth;
+
+    // Wall yang "dijatah" ke Enemy ini SEKALI di awal (spawn) dan gak pernah diganti-ganti lagi
+    // selama masih hidup — biar dia komit jalan ke situ terus, gak mondar-mandir gara-gara
+    // rebutan/tuker sasaran sama Enemy lain tiap kali retarget.
+    private Transform assignedWall;
+    private Health assignedWallHealth;
     private float retargetTimer;
     private float attackTimer;
 
     private void Awake()
     {
-        body = GetComponent<Rigidbody>();
+        agent = GetComponent<NavMeshAgent>();
         health = GetComponent<Health>();
         if (animator == null) animator = GetComponentInChildren<Animator>();
         if (upgrades == null) upgrades = FindObjectOfType<BlacksmithUpgrades>();
 
+        agent.speed = chaseSpeed;
+        agent.stoppingDistance = stopDistance;
+
         health.onDeath.AddListener(HandleDeath);
+
+        AssignWall();
     }
 
     // Otomatis kasih tag "Enemy" pas komponen ini ditambahin di Editor, biar gak lupa set manual.
@@ -57,9 +77,9 @@ public class Enemy : MonoBehaviour
         gameObject.tag = "Enemy";
     }
 
-    private void FixedUpdate()
+    private void Update()
     {
-        retargetTimer -= Time.fixedDeltaTime;
+        retargetTimer -= Time.deltaTime;
         if (target == null || (targetHealth != null && targetHealth.IsDead) || retargetTimer <= 0f)
         {
             FindNearestTarget();
@@ -72,27 +92,27 @@ public class Enemy : MonoBehaviour
             return;
         }
 
-        Vector3 toTarget = target.position - body.position;
-        toTarget.y = 0f;
-        float dist = toTarget.magnitude;
+        if (agent.enabled) agent.SetDestination(target.position);
 
-        if (dist <= stopDistance)
+        // Pakai jarak sisa di jalur NavMesh, BUKAN jarak lurus ke posisi target — kalau target
+        // (misal Wall) ketutup collider, NavMesh gak bisa nyampe pas di titiknya, ada jarak aman
+        // (clearance) dari obstacle. remainingDistance ngasih tau udah nyampe seposisi paling
+        // deket yang bisa dicapai, walau itu masih agak jauh dari posisi Wall yang sebenarnya.
+        bool closeEnough = agent.enabled && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+        if (closeEnough)
         {
-            FaceDirection(toTarget);
             UpdateBlend(CombatAnimatorParams.BlendIdle);
             Attack();
-            return;
         }
-
-        Vector3 dir = toTarget.normalized;
-        body.MovePosition(body.position + dir * chaseSpeed * Time.fixedDeltaTime);
-        FaceDirection(dir);
-        UpdateBlend(CombatAnimatorParams.BlendRun);
+        else
+        {
+            UpdateBlend(CombatAnimatorParams.BlendRun);
+        }
     }
 
     private void Attack()
     {
-        attackTimer -= Time.fixedDeltaTime;
+        attackTimer -= Time.deltaTime;
         if (attackTimer > 0f) return;
         attackTimer = attackCooldown;
 
@@ -100,15 +120,23 @@ public class Enemy : MonoBehaviour
         if (targetHealth != null) targetHealth.TakeDamage(attackDamage);
     }
 
-    private void FaceDirection(Vector3 dir)
+    // NPC yang udah keluar spline & lagi combat diutamain kalau ada — ini DICEK ULANG tiap
+    // retarget soalnya NPC-nya gerak-gerak. Kalau gak ada, balik ke Wall yang udah "dijatah" dari
+    // awal (assignedWall) — itu gak pernah diganti-ganti lagi, jadi Enemy gak mondar-mandir gara-
+    // gara rebutan sasaran. Kecuali Wall itu sendiri udah hancur, baru dipilihin Wall baru sekali.
+    private void FindNearestTarget()
     {
-        if (!faceTarget) return;
-        dir.y = 0f;
-        if (dir.sqrMagnitude > 0.0001f)
-            body.MoveRotation(Quaternion.LookRotation(dir.normalized));
+        FindNearestNpcInCombat();
+        if (target != null) return;
+
+        if (assignedWall == null || (assignedWallHealth != null && assignedWallHealth.IsDead))
+            AssignWall();
+
+        target = assignedWall;
+        targetHealth = assignedWallHealth;
     }
 
-    private void FindNearestTarget()
+    private void FindNearestNpcInCombat()
     {
         target = null;
         targetHealth = null;
@@ -118,6 +146,10 @@ public class Enemy : MonoBehaviour
         float best = float.MaxValue;
         foreach (GameObject candidate in candidates)
         {
+            // NPC yang masih jalan/ngantre di spline (belum keluar buat combat) di-skip.
+            SplineFollower follower = candidate.GetComponent<SplineFollower>();
+            if (follower != null && !follower.IsInCombat) continue;
+
             Health candidateHealth = candidate.GetComponent<Health>();
             if (candidateHealth != null && candidateHealth.IsDead) continue;
 
@@ -131,9 +163,66 @@ public class Enemy : MonoBehaviour
         }
     }
 
+    // Dipanggil SEKALI doang (pas Awake, atau pas Wall yang lama udah hancur) — milih Wall yang
+    // paling SEDIKIT dikerubungin Enemy lain (load balancing), baru jarak jadi tie-breaker. Hasil
+    // pilihannya DIKUNCI ke assignedWall, gak pernah dievaluasi ulang lagi tiap retarget, biar
+    // Enemy komit ke satu Wall dan gak mondar-mandir gara-gara rebutan sasaran sama Enemy lain.
+    private void AssignWall()
+    {
+        ReleaseWallTarget(); // lepas slot lama dulu kalau ini re-assign gara-gara wall lama hancur
+
+        assignedWall = null;
+        assignedWallHealth = null;
+        if (string.IsNullOrEmpty(wallTag)) return;
+
+        GameObject[] candidates = GameObject.FindGameObjectsWithTag(wallTag);
+        int bestCount = int.MaxValue;
+        float bestDist = float.MaxValue;
+        foreach (GameObject candidate in candidates)
+        {
+            Health candidateHealth = candidate.GetComponent<Health>();
+            if (candidateHealth != null && candidateHealth.IsDead) continue;
+
+            wallAttackerCounts.TryGetValue(candidate.transform, out int count);
+            float d = (candidate.transform.position - transform.position).sqrMagnitude;
+
+            if (count < bestCount || (count == bestCount && d < bestDist))
+            {
+                bestCount = count;
+                bestDist = d;
+                assignedWall = candidate.transform;
+                assignedWallHealth = candidateHealth;
+            }
+        }
+
+        if (assignedWall != null)
+        {
+            wallAttackerCounts.TryGetValue(assignedWall, out int c);
+            wallAttackerCounts[assignedWall] = c + 1;
+        }
+    }
+
+    private void ReleaseWallTarget()
+    {
+        if (assignedWall == null) return;
+
+        if (wallAttackerCounts.TryGetValue(assignedWall, out int count))
+        {
+            count = Mathf.Max(0, count - 1);
+            if (count == 0) wallAttackerCounts.Remove(assignedWall);
+            else wallAttackerCounts[assignedWall] = count;
+        }
+        assignedWall = null;
+    }
+
     private void UpdateBlend(float value)
     {
-        if (animator != null) animator.SetFloat(CombatAnimatorParams.Blend, value, blendDamping, Time.fixedDeltaTime);
+        if (animator != null) animator.SetFloat(CombatAnimatorParams.Blend, value, blendDamping, Time.deltaTime);
+    }
+
+    private void OnDestroy()
+    {
+        ReleaseWallTarget();
     }
 
     private void HandleDeath()
@@ -141,7 +230,8 @@ public class Enemy : MonoBehaviour
         if (upgrades != null) upgrades.AddGold(goldReward);
 
         if (animator != null) animator.SetBool(CombatAnimatorParams.Death, true);
-        if (body != null) body.isKinematic = true;
+        if (agent != null) agent.enabled = false;
+        ReleaseWallTarget();
 
         // Health yang urus Destroy(gameObject) setelah delay, di sini cukup stop semua logic-nya.
         enabled = false;

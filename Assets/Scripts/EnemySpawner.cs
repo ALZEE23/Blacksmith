@@ -21,6 +21,14 @@ public class EnemySpawner : MonoBehaviour
     [Tooltip("Musuh yang di-spawn jadi child object ini kalau dicentang.")]
     [SerializeField] private bool parentToSpawner = true;
 
+    [Header("Ground Snap Spawn")]
+    [Tooltip("Layer tanah/terrain, dipakai buat nyari tinggi permukaan yang bener pas spawn (biar gak kekubur/ngambang kalau areal Spawn Radius-nya nyerempet tanjakan). Samain sama Ground Mask di Enemy.")]
+    [SerializeField] private LayerMask groundMask = ~0;
+    [SerializeField] private float groundRayUp = 20f;
+    [SerializeField] private float groundRayDown = 40f;
+    [Tooltip("Selisih tinggi antara pivot prefab dan permukaan tanah hasil raycast. Kalau model masih keliatan kekubur/ngambang walau raycast-nya bener, kalibrasi di sini. Samain sama Ground Offset di Enemy.")]
+    [SerializeField] private float groundOffset;
+
     private readonly List<GameObject> alive = new List<GameObject>();
     private float timer;
 
@@ -51,10 +59,21 @@ public class EnemySpawner : MonoBehaviour
         Vector3 basePos = spawnPoint != null ? spawnPoint.position : transform.position;
         Vector2 offset2D = spawnRadius > 0f ? Random.insideUnitCircle * spawnRadius : Vector2.zero;
         Vector3 position = basePos + new Vector3(offset2D.x, 0f, offset2D.y);
+        position = SnapToGroundHeight(position);
         Quaternion rotation = spawnPoint != null ? spawnPoint.rotation : transform.rotation;
 
         GameObject enemy = Instantiate(prefab, position, rotation, parentToSpawner ? transform : null);
         alive.Add(enemy);
+    }
+
+    // Cari tinggi tanah beneran di titik XZ ini, biar enemy gak muncul kekubur/ngambang kalau
+    // areal Spawn Radius-nya nyerempet tanjakan/turunan.
+    private Vector3 SnapToGroundHeight(Vector3 position)
+    {
+        Vector3 origin = position + Vector3.up * groundRayUp;
+        if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, groundRayUp + groundRayDown, groundMask, QueryTriggerInteraction.Ignore))
+            position.y = hit.point.y + groundOffset;
+        return position;
     }
 
     private void OnDrawGizmosSelected()
