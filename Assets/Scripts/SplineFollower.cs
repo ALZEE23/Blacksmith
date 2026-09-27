@@ -87,6 +87,8 @@ public class SplineFollower : MonoBehaviour
     private Health targetHealth;
     private float retargetTimer;
     private float attackTimer;
+    // Udah nempel & mulai nyerang target sekarang — selama ini true, gak boleh retarget lagi.
+    private bool engaged;
     private float damageMultiplier = 1f;
 
     private void Awake()
@@ -386,7 +388,13 @@ public class SplineFollower : MonoBehaviour
     private void Chase()
     {
         retargetTimer -= Time.fixedDeltaTime;
-        if (chaseTarget == null || (targetHealth != null && targetHealth.IsDead) || retargetTimer <= 0f)
+
+        bool targetInvalid = chaseTarget == null || (targetHealth != null && targetHealth.IsDead);
+        if (targetInvalid) engaged = false; // target abis/mati, boleh nyari musuh baru lagi
+
+        // Begitu udah "engaged" (nempel & mulai mukul), JANGAN retarget lagi walau timer abis —
+        // biar NPC fokus nyerang musuh itu terus, gak keseret pindah ke musuh lain yang lewat.
+        if (!engaged && (targetInvalid || retargetTimer <= 0f))
         {
             FindNearestEnemy();
             retargetTimer = retargetInterval;
@@ -404,6 +412,8 @@ public class SplineFollower : MonoBehaviour
         // ketutup collider, NavMesh gak bisa nyampe pas di titiknya (ada clearance dari obstacle).
         // remainingDistance ngasih tau udah nyampe seposisi paling deket yang bisa dicapai.
         bool closeEnough = agent.enabled && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+        if (closeEnough) engaged = true; // udah nempel, kunci target ini sampe dia mati
+
         if (closeEnough)
         {
             UpdateBlend(CombatAnimatorParams.BlendIdle);

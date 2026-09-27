@@ -55,6 +55,8 @@ public class Enemy : MonoBehaviour
     private Health assignedWallHealth;
     private float retargetTimer;
     private float attackTimer;
+    // Udah nempel & mulai nyerang target sekarang — selama ini true, gak boleh retarget lagi.
+    private bool engaged;
 
     private void Awake()
     {
@@ -80,7 +82,14 @@ public class Enemy : MonoBehaviour
     private void Update()
     {
         retargetTimer -= Time.deltaTime;
-        if (target == null || (targetHealth != null && targetHealth.IsDead) || retargetTimer <= 0f)
+
+        bool targetInvalid = target == null || (targetHealth != null && targetHealth.IsDead);
+        if (targetInvalid) engaged = false; // target abis/mati, boleh nyari sasaran baru lagi
+
+        // Begitu udah "engaged" (nempel & mulai mukul), JANGAN re-evaluate target lagi walau
+        // timer retarget abis — biar Enemy fokus nyerang itu terus, gak keseret pindah ke NPC yang
+        // kebetulan lewat pas lagi mukul Wall. Baru boleh cari sasaran baru kalau target ini mati.
+        if (!engaged && (targetInvalid || retargetTimer <= 0f))
         {
             FindNearestTarget();
             retargetTimer = retargetInterval;
@@ -99,6 +108,8 @@ public class Enemy : MonoBehaviour
         // (clearance) dari obstacle. remainingDistance ngasih tau udah nyampe seposisi paling
         // deket yang bisa dicapai, walau itu masih agak jauh dari posisi Wall yang sebenarnya.
         bool closeEnough = agent.enabled && !agent.pathPending && agent.remainingDistance <= agent.stoppingDistance;
+        if (closeEnough) engaged = true; // udah nempel, kunci target ini sampe dia mati
+
         if (closeEnough)
         {
             UpdateBlend(CombatAnimatorParams.BlendIdle);

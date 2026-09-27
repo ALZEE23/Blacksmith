@@ -7,6 +7,8 @@ using UnityEngine.EventSystems;
 public class CameraPanController : MonoBehaviour
 {
     [Header("Pan")]
+    [Tooltip("Tombol mouse buat geser kamera. 0 = kiri, 1 = kanan, 2 = tengah. Default kanan, biar kiri bebas dipakai buat klik/tap (QTE, masang prop, dll).")]
+    [SerializeField] private int panMouseButton = 1;
     [Tooltip("Tinggi bidang tanah (world Y) yang dipakai buat itung drag. Samain kira-kira sama tinggi map-nya.")]
     [SerializeField] private float groundHeight = 0f;
     [SerializeField] private bool useInertia = true;
@@ -18,6 +20,10 @@ public class CameraPanController : MonoBehaviour
     [Tooltip("Batas geser kamera di sumbu X dan Z (world space).")]
     [SerializeField] private Vector2 minBounds = new Vector2(-20f, -20f);
     [SerializeField] private Vector2 maxBounds = new Vector2(20f, 20f);
+
+    [Header("Integrasi")]
+    [Tooltip("Kosongkan kalau gak pakai fitur build. Kalau diisi, pan/drag kamera otomatis nonaktif selagi Build Mode aktif, biar klik buat masang prop gak ke-anggep drag kamera juga.")]
+    [SerializeField] private PropBuilder propBuilder;
 
     [Header("Zoom (opsional)")]
     [SerializeField] private bool enableZoom = true;
@@ -50,13 +56,14 @@ public class CameraPanController : MonoBehaviour
     private void HandlePan()
     {
         if (IsPointerOverUI()) return;
+        if (propBuilder != null && propBuilder.BuildModeActive) return;
 
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(panMouseButton))
         {
             dragging = TryGetGroundPoint(Input.mousePosition, out lastGroundPoint);
             velocity = Vector3.zero;
         }
-        else if (Input.GetMouseButton(0) && dragging)
+        else if (Input.GetMouseButton(panMouseButton) && dragging)
         {
             if (TryGetGroundPoint(Input.mousePosition, out Vector3 current))
             {
@@ -65,7 +72,7 @@ public class CameraPanController : MonoBehaviour
                 velocity = delta / Mathf.Max(Time.deltaTime, 0.0001f);
             }
         }
-        else if (Input.GetMouseButtonUp(0))
+        else if (Input.GetMouseButtonUp(panMouseButton))
         {
             dragging = false;
         }

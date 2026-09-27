@@ -69,7 +69,7 @@ public class BlacksmithUpgrades : MonoBehaviour
 
     public bool TryUpgradeAnvil()
     {
-        if (!Spend(AnvilUpgradeCost)) return false;
+        if (!TrySpendGold(AnvilUpgradeCost)) return false;
         anvilLevel++;
         onAnvilUpgraded?.Invoke();
         return true;
@@ -77,7 +77,7 @@ public class BlacksmithUpgrades : MonoBehaviour
 
     public bool TryUpgradeWeapon()
     {
-        if (!Spend(WeaponUpgradeCost)) return false;
+        if (!TrySpendGold(WeaponUpgradeCost)) return false;
         weaponLevel++;
         onWeaponUpgraded?.Invoke();
         return true;
@@ -85,14 +85,17 @@ public class BlacksmithUpgrades : MonoBehaviour
 
     public bool TryUpgradeMulticraft()
     {
-        if (!Spend(MulticraftUpgradeCost)) return false;
+        if (!TrySpendGold(MulticraftUpgradeCost)) return false;
         multicraftLevel++;
         onMulticraftUpgraded?.Invoke();
         return true;
     }
 
-    private bool Spend(int amount)
+    // Publik biar sistem lain (misal PropBuilder) bisa motong gold buat beli/masang sesuatu,
+    // gak cuma buat upgrade doang. Balikin false kalau gold-nya kurang, gak ada yang kepotong.
+    public bool TrySpendGold(int amount)
     {
+        if (amount <= 0) return true; // gratis, gak perlu ngapa-ngapain
         if (gold < amount) return false;
         gold -= amount;
         onGoldChanged?.Invoke();

@@ -24,6 +24,14 @@ public class BlacksmithStation : MonoBehaviour
     [Tooltip("Animator si NPC pandai besi (bukan Animator NPC yang lagi diproses/antre).")]
     [SerializeField] private Animator blacksmithAnimator;
 
+    [Header("VFX")]
+    [Tooltip("Titik di permukaan anvil tempat percikan muncul. Kosongkan buat pakai posisi object ini.")]
+    [SerializeField] private Transform sparkPoint;
+    [Tooltip("Jeda dari mulai animasi Attack sampai percikan keluar (detik), biar pas sama momen palu 'kena' di animasinya — bukan langsung pas di-tap. Samain kira-kira sama timing animasi Attack-mu.")]
+    [SerializeField] private float sparkDelay = 0.15f;
+
+    private SparkBurst sparkBurst;
+
     [Header("Hasil Forging")]
     [Tooltip("Pengali damage pedang kalau hasil QTE-nya jelek (banyak Miss).")]
     [SerializeField] private float minDamageMultiplier = 0.5f;
@@ -36,6 +44,13 @@ public class BlacksmithStation : MonoBehaviour
     private int pendingFreeEquips;
     private float pendingMultiplier;
     private GameObject pendingWeaponPrefab;
+
+    private void Awake()
+    {
+        GameObject sparkGo = new GameObject("SparkBurst", typeof(ParticleSystem));
+        sparkGo.transform.SetParent(sparkPoint != null ? sparkPoint : transform, false);
+        sparkBurst = sparkGo.AddComponent<SparkBurst>();
+    }
 
     private void OnEnable()
     {
@@ -80,6 +95,23 @@ public class BlacksmithStation : MonoBehaviour
     private void HandleHit(ForgeQTE.HitResult result)
     {
         if (blacksmithAnimator != null) blacksmithAnimator.SetTrigger(CombatAnimatorParams.Attack);
+
+        if (sparkDelay > 0f)
+        {
+            // Kalau di-tap cepet berturut-turut, batalin jadwal percikan yang lama dulu biar
+            // gak numpuk/keluar dobel dari tap sebelumnya yang belum sempet "kena".
+            CancelInvoke(nameof(PlaySpark));
+            Invoke(nameof(PlaySpark), sparkDelay);
+        }
+        else
+        {
+            PlaySpark();
+        }
+    }
+
+    private void PlaySpark()
+    {
+        if (sparkBurst != null) sparkBurst.Play();
     }
 
     private void HandleForgeComplete()

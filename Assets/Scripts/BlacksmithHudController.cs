@@ -76,7 +76,7 @@ public class BlacksmithHudController : MonoBehaviour
 
     private void SetLabels(TMP_Text levelLabel, TMP_Text costLabel, int level, int cost)
     {
-        if (levelLabel != null) levelLabel.text = $"Lvl {level}";
+        if (levelLabel != null) levelLabel.text = $"Level {level}";
         if (costLabel != null) costLabel.text = $"{cost}g";
     }
 
