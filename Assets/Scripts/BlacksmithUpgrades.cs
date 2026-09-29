@@ -36,6 +36,23 @@ public class BlacksmithUpgrades : MonoBehaviour
     public UnityEvent onWeaponUpgraded;
     public UnityEvent onMulticraftUpgraded;
 
+    // Sengaja pakai Start() bukan Awake() — Unity nge-jalanin SEMUA Awake() di scene dulu baru
+    // Start(), jadi PlayerProgress.Instance dijamin udah ke-set duluan (Awake-nya dia) sebelum
+    // baris ini jalan, gak peduli urutan script execution order-nya gimana.
+    private void Start()
+    {
+        // Level akun (permanen, disimpen PlayerProgress) ngasih bonus gold pas mulai game baru —
+        // Level 1 = +0, Level 2 = +50, Level 3 = +100, dst — di atas Gold dasar yang di-set di Inspector.
+        if (PlayerProgress.Instance != null && PlayerProgress.Instance.StartingGoldBonus > 0)
+        {
+            gold += PlayerProgress.Instance.StartingGoldBonus;
+            // HUD (kalau ada) biasanya udah sempet Refresh() duluan di OnEnable-nya sebelum baris
+            // ini jalan (OnEnable jalan sebelum Start), jadi re-trigger event ini biar labelnya
+            // ke-update ngikutin gold yang udah ketambahan bonus, bukan nunjukin nilai lama.
+            onGoldChanged?.Invoke();
+        }
+    }
+
     public int Gold => gold;
     public int AnvilLevel => anvilLevel;
     public int WeaponLevel => weaponLevel;

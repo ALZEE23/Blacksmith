@@ -531,6 +531,10 @@ PrefabInstance:
         type: 3}
       insertIndex: -1
       addedObject: {fileID: 6095839203048014081}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 3015a866c0a0c4b4ba23913d62ed16f2,
+        type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 889874637306602248}
   m_SourcePrefab: {fileID: 100100000, guid: 3015a866c0a0c4b4ba23913d62ed16f2, type: 3}
 --- !u!4 &208568734227655547 stripped
 Transform:
@@ -631,7 +635,7 @@ MonoBehaviour:
   speed: 2
   onEnd: 3
   faceMoveDirection: 1
-  checkpointKnots: 03000000
+  checkpointKnots: 02000000
   queueSpacing: 1.2
   enemyTag: Enemy
   chaseSpeed: 3
@@ -639,12 +643,6 @@ MonoBehaviour:
   retargetInterval: 1
   attackDamage: 10
   attackCooldown: 1
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 256
-  groundSnapSpeed: 8
-  groundRayUp: 2
-  groundRayDown: 5
   sword: {fileID: 998007414033502329}
   handSlot: {fileID: 208568734227655547}
   animator: {fileID: 6731295321351879203}
@@ -664,9 +662,43 @@ MonoBehaviour:
   maxHealth: 100
   destroyOnDeath: 1
   destroyDelay: 2
+  showHealthBar: 1
+  autoSizeHealthBar: 1
+  healthBarTopPadding: 0.3
+  healthBarWidthMultiplier: 0.8
+  healthBarWidthRange: {x: 0.4, y: 5}
+  healthBarOffset: {x: 0, y: 2, z: 0}
+  healthBarSize: {x: 1, y: 0.15}
+  healthBarBackgroundColor: {r: 0, g: 0, b: 0, a: 0.6}
+  healthBarFillColor: {r: 0.85, g: 0.15, b: 0.15, a: 1}
+  hitFlash: 1
+  hitFlashColor: {r: 1, g: 0.1, b: 0.1, a: 1}
+  hitFlashDuration: 0.15
   onDeath:
     m_PersistentCalls:
       m_Calls: []
   onDamaged:
     m_PersistentCalls:
       m_Calls: []
+--- !u!195 &889874637306602248
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4418477341963200046}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 3.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
