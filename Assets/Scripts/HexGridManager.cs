@@ -32,6 +32,8 @@ public class HexGridManager : MonoBehaviour
     [SerializeField, Range(0, 5)] private int rotationStep;
     [Tooltip("Rotasi tambahan (derajat) yang ditumpuk di atas Rotation Step. Buat rapihin tile yang forward prefab-nya gak lurus, atau kasih kemiringan X/Z ke dekorasi.")]
     [SerializeField] private Vector3 rotationOffset;
+    [Tooltip("Kalau dicentang, tile yang dipasang otomatis dikasih MeshCollider (cuma kalau prefab-nya emang belum ada Collider sama sekali) — berguna buat prefab dekorasi/wall yang aslinya gak dikasih collider tapi butuh collision di grid ini.")]
+    [SerializeField] private bool brushAddCollider;
 
     [Header("Editor")]
     [Tooltip("Aktifkan biar bisa klik di Scene view: klik = pasang tile, Shift+klik = hapus.")]
@@ -208,6 +210,24 @@ public class HexGridManager : MonoBehaviour
         tile.q = hex.x;
         tile.r = hex.y;
         tile.layer = layerIndex;
+
+        if (brushAddCollider) AddColliderIfMissing(go);
+    }
+
+    // Dipanggil pas checkbox "Brush Add Collider" nyala — kalau prefab yang dipasang emang belum
+    // punya Collider SAMA SEKALI, tambahin MeshCollider ngikutin mesh-nya masing-masing (baik yang
+    // meshnya nempel di root atau di child-nya). Kalau prefab-nya udah ada collider sendiri, gak
+    // diapa-apain (gak numpuk collider ganda).
+    private void AddColliderIfMissing(GameObject go)
+    {
+        if (go.GetComponentInChildren<Collider>() != null) return;
+
+        foreach (MeshFilter meshFilter in go.GetComponentsInChildren<MeshFilter>())
+        {
+            if (meshFilter.sharedMesh == null) continue;
+            MeshCollider collider = meshFilter.gameObject.AddComponent<MeshCollider>();
+            collider.sharedMesh = meshFilter.sharedMesh;
+        }
     }
 
     public void RemoveTile(Vector2Int hex, int layerIndex)
